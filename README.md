@@ -61,7 +61,7 @@ A self-contained **HTML file** you can open in any browser:
 |--------|-----------|
 | CSV / TSV | `.csv`, `.tsv` |
 | Excel | `.xlsx`, `.xls` |
-| JSON | `.json` (array of objects, columnar object, or JSON Lines) |
+| JSON | `.json`, `.jsonl`, `.ndjson` (array of objects, columnar object, or JSON Lines) |
 
 Large files (>100k rows) are sampled at 10,000 rows - noted in the report header. Excel workbooks contribute their first sheet; the other sheet names are included in the analysis output. CSV and TSV are read as UTF-8 (with or without BOM), Windows-1252, or Latin-1, with the delimiter detected automatically. A semicolon file that uses a decimal comma is parsed as a number.
 

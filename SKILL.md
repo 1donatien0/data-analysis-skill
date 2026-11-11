@@ -1,6 +1,6 @@
 ---
 name: data-analysis
-version: 1.0.0
+version: 1.0.1
 author: Donatien Byakombe
 year: 2026
 license: MIT
@@ -43,7 +43,7 @@ Turn raw data into clear, actionable insights with an interactive HTML report - 
 Run this script (adapt the file path if needed). It loads CSV, TSV, Excel, and JSON without hardcoded column names.
 
 ```python
-import csv, json, re, sys
+import csv, io, json, re, sys
 from pathlib import Path
 
 try:
@@ -196,7 +196,7 @@ def read_json(file_path):
         raw = json.loads(text)
     except json.JSONDecodeError:
         try:
-            return pd.read_json(file_path, lines=True), meta
+            return pd.read_json(io.StringIO(text), lines=True), meta
         except Exception as exc:
             fail(f"JSON illisible ({exc}).")
     if isinstance(raw, list):
@@ -219,7 +219,7 @@ def read_table(file_path):
     suffix = file_path.suffix.lower()
     if suffix in [".xlsx", ".xls"]:
         return read_excel(file_path)
-    if suffix == ".json":
+    if suffix in [".json", ".jsonl", ".ndjson"]:
         return read_json(file_path)
     return read_delimited(file_path)
 
@@ -230,6 +230,25 @@ def is_text_series(series):
         or isinstance(series.dtype, pd.CategoricalDtype)
     )
 
+def to_dates(series):
+    text = series.dropna().astype(str).str.strip()
+    monthfirst = bool(text.str.match(r"^\d{1,2}[/.\-](1[3-9]|2\d|3[01])[/.\-]\d{2,4}").any())
+    try:
+        return pd.to_datetime(series, errors="coerce", dayfirst=not monthfirst, format="mixed")
+    except (TypeError, ValueError):
+        return pd.to_datetime(series, errors="coerce", dayfirst=not monthfirst)
+
+def text_to_numbers(series, decimal):
+    text = series.dropna().astype(str).str.strip()
+    if len(text) == 0:
+        return series
+    text = text.str.replace(r"[\s\u00a0\u202f]", "", regex=True)
+    if decimal == ",":
+        text = text.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+    if not text.str.fullmatch(r"[-+]?\d+(\.\d+)?").all():
+        return series
+    return pd.to_numeric(text, errors="coerce").reindex(series.index)
+
 def looks_like_dates(series):
     sample = series.dropna().head(30)
     if len(sample) < 6:
@@ -237,7 +256,7 @@ def looks_like_dates(series):
     as_text = sample.astype(str).str.strip()
     if as_text.str.fullmatch(r"\d{1,4}").mean() >= 0.8:
         return False
-    parsed = pd.to_datetime(sample, errors="coerce")
+    parsed = to_dates(sample)
     return float(parsed.notna().mean()) >= 0.8
 
 def finite_series(series):
@@ -277,6 +296,10 @@ if source_rows > 100_000:
 if len(df) == 0:
     fail("Le fichier ne contient aucune ligne de données.")
 
+for col in df.columns:
+    if is_text_series(df[col]):
+        df[col] = text_to_numbers(df[col], load_meta.get("decimal") or ".")
+
 parsed_dates = {}
 date_cols = []
 for col in df.columns:
@@ -285,7 +308,7 @@ for col in df.columns:
         parsed_dates[col] = series
         date_cols.append(col)
     elif is_text_series(series) and looks_like_dates(series):
-        parsed_dates[col] = pd.to_datetime(series, errors="coerce")
+        parsed_dates[col] = to_dates(series)
         date_cols.append(col)
 
 numeric_cols = [
@@ -652,3 +675,4 @@ Save the report as `[original_filename]_analyse.html` in the same folder as the 
 ## Version history
 
 - **1.0.0** - Initial release. Python analysis for CSV, TSV, Excel, and JSON (encoding, sampling, IQR anomalies, monthly sum and mean, Pearson correlations), self-contained HTML template with Chart.js, two-pass insight process, edge case guidance.
+- **1.0.1** - Dates JJ/MM/AAAA lues jour en premier, extensions .jsonl/.ndjson, JSON Lines avec BOM, montants avec séparateur de milliers convertis en nombres.

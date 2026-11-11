@@ -28,7 +28,7 @@ A Claude Code / Cowork skill implemented as Markdown + a bundled Python script p
 - The HTML template must remain self-contained (no external dependencies except Chart.js from cdnjs.cloudflare.com).
 - Keep the two-pass process (analyze → audit → report) intact - it is the core quality mechanism.
 
-## Adding a new output format
+## Adding a new input format
 
 If you add support for a new input format (e.g. Parquet, SQLite):
 1. Add the loading logic to the Python script in SKILL.md
